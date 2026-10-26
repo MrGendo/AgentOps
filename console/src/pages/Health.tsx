@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api } from "../api";
+import { PageHeader } from "../components/Layout";
+import { ErrorBanner } from "../components/StateViews";
 
 // 平台健康页：Go 与 PG 状态实时展示。
 export default function Health() {
@@ -26,8 +28,8 @@ export default function Health() {
 
   return (
     <section>
-      <h2>平台健康</h2>
-      {error && <div className="banner red">请求失败：{error}</div>}
+      <PageHeader title="平台健康" desc="Go 平台与依赖状态" />
+      {error && <ErrorBanner message={`请求失败：${error}`} />}
       {health && (
         <div className="cards">
           <div className="card">

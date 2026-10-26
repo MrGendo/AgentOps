@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { api } from "../api";
+import { PageHeader } from "../components/Layout";
+import { ErrorBanner } from "../components/StateViews";
 import { durationText, formatDateTime, metricText } from "../format";
 import type { Dataset, EvalRun, EvalRunDetail } from "../types";
 
@@ -67,8 +69,8 @@ export default function Evaluations() {
 
   return (
     <section>
-      <div className="toolbar"><h2>评测</h2></div>
-      {error && <div className="banner red">加载失败：{error}</div>}
+      <PageHeader title="评测与诊断" desc="数据集 · 批量评测 · 指标口径 · 版本对比 · 失败下钻" />
+      {error && <ErrorBanner message={`加载失败：${error}`} />}
       {toast && <div className="banner blue">{toast}</div>}
 
       <div className="card">
