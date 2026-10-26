@@ -1,4 +1,4 @@
-// Package store 封装 PostgreSQL 访问；核心表只允许经本包写入（架构文档 §4）。
+// Package store 封装 PostgreSQL 访问；核心表只允许经本包与领域包写入（架构文档 §4）。
 package store
 
 import (
@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Store 持有 pgx 连接池；阶段 B 起承载任务/租约/事件等全部数据访问。
+// Store 持有 pgx 连接池。
 type Store struct {
 	pool *pgxpool.Pool
 }
@@ -27,6 +27,9 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 
 // Ping 实现 httpapi.Pinger，用于健康检查。
 func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
+
+// Pool 暴露底层池供领域包开启事务；不鼓励绕过领域包直接拼 SQL。
+func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 
 // Close 释放连接池。
 func (s *Store) Close() { s.pool.Close() }

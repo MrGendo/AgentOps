@@ -7,6 +7,10 @@ build:
 test:
 	cd platform && go test ./...
 
+# 集成测试：串行执行包（-p 1），共享 agentops_test 库的测试不得并行
+test-integration:
+	cd platform && go test -tags integration -p 1 -count=1 -timeout 180s ./internal/...
+
 migrate-up:
 	cd platform && go run ./cmd/migrate -up
 

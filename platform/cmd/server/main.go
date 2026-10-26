@@ -1,5 +1,6 @@
 // cmd/server 是 AgentOps Go 核心执行平台入口。
-// 模块化阶段 Server 与 Worker 同二进制（架构文档 D-2），角色由 AGENTOPS_ROLE 控制。
+// 模块化阶段 Server 与 Worker 同二进制（架构文档 D-2），角色由 AGENTOPS_ROLE 控制：
+// all = HTTP + Worker；server = 仅 HTTP；worker = 仅 Worker。
 package main
 
 import (
@@ -13,8 +14,11 @@ import (
 	"time"
 
 	"github.com/agentops/platform/internal/config"
+	"github.com/agentops/platform/internal/gateway"
 	"github.com/agentops/platform/internal/httpapi"
 	"github.com/agentops/platform/internal/store"
+	"github.com/agentops/platform/internal/task"
+	"github.com/agentops/platform/internal/worker"
 )
 
 func main() {
@@ -44,12 +48,40 @@ func run() error {
 	}
 	defer st.Close()
 
-	srv := &http.Server{
-		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.New(httpapi.Deps{DB: st}),
-		ReadHeaderTimeout: 5 * time.Second,
+	// 工具网关：四内置工具 + 知识库目录注入
+	tools, err := gateway.DefaultTools(st.Pool(), cfg.KnowledgeDir)
+	if err != nil {
+		return err
+	}
+	gw := gateway.New(st.Pool(), tools...)
+
+	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Worker：按角色启动
+	if cfg.Role != "server" {
+		m := worker.NewManager(worker.Config{
+			ID:             "worker-" + hostname(),
+			Concurrency:    cfg.WorkerConcurrency,
+			LeaseTTL:       time.Duration(cfg.LeaseTTLSeconds) * time.Second,
+			RetryBase:      time.Duration(cfg.RetryBaseSeconds) * time.Second,
+			RetryMaxWait:   time.Duration(cfg.RetryMaxWaitSecond) * time.Second,
+			ReaperInterval: time.Duration(cfg.ReaperIntervalMS) * time.Millisecond,
+		}, st.Pool(), gw, worker.DefaultExecutors()...)
+		m.Start(rootCtx)
+		log.Printf("Worker 已启动（并发=%d，类型=%v）", cfg.WorkerConcurrency, m.SupportedTypes())
 	}
 
+	if cfg.Role == "worker" {
+		<-rootCtx.Done()
+		return nil
+	}
+
+	srv := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           httpapi.New(httpapi.Deps{DB: st, Pool: st.Pool(), Tasks: task.NewStore(st.Pool()), GW: gw, ServiceToken: cfg.ServiceToken}),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 	go func() {
 		log.Printf("AgentOps Go 平台监听 :%s（role=%s）", cfg.Port, cfg.Role)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -57,11 +89,17 @@ func run() error {
 		}
 	}()
 
-	// 优雅退出：收到信号后给在途请求 5 秒收尾。
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	// 优雅退出：收到信号后给在途请求 5 秒收尾
+	<-rootCtx.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return srv.Shutdown(ctx)
+}
+
+func hostname() string {
+	h, err := os.Hostname()
+	if err != nil || h == "" {
+		return "local"
+	}
+	return h
 }

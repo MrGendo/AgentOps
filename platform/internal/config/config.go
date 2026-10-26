@@ -14,6 +14,12 @@ type Config struct {
 	WorkerConcurrency int    // Worker 并发领取数
 	LeaseTTLSeconds   int    // 租约时长；心跳与过期检测共用
 	ServiceToken      string // 内部接口服务令牌（Python 调用 Go 时校验）
+
+	RetryBaseSeconds   int    // 重试退避基数
+	RetryMaxWaitSecond int    // 重试退避上限
+	ReaperIntervalMS   int    // 恢复器扫描间隔
+	KnowledgeDir       string // 知识库目录
+	EnabledRole        string // 角色：all|server|worker
 }
 
 // Load 按环境变量读取配置，缺省值满足本地开发（.env.example 与此对齐）。
@@ -25,6 +31,11 @@ func Load() Config {
 		WorkerConcurrency: envInt("AGENTOPS_WORKER_CONCURRENCY", 2),
 		LeaseTTLSeconds:   envInt("AGENTOPS_LEASE_TTL_SECONDS", 30),
 		ServiceToken:      env("AGENTOPS_SERVICE_TOKEN", "dev-service-token"),
+
+		RetryBaseSeconds:   envInt("AGENTOPS_RETRY_BASE_SECONDS", 2),
+		RetryMaxWaitSecond: envInt("AGENTOPS_RETRY_MAX_WAIT_SECONDS", 60),
+		ReaperIntervalMS:   envInt("AGENTOPS_REAPER_INTERVAL_MS", 5000),
+		KnowledgeDir:       env("AGENTOPS_KNOWLEDGE_DIR", "knowledge"),
 	}
 }
 
