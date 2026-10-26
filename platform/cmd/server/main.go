@@ -67,7 +67,9 @@ func run() error {
 			RetryBase:      time.Duration(cfg.RetryBaseSeconds) * time.Second,
 			RetryMaxWait:   time.Duration(cfg.RetryMaxWaitSecond) * time.Second,
 			ReaperInterval: time.Duration(cfg.ReaperIntervalMS) * time.Millisecond,
-		}, st.Pool(), gw, worker.DefaultExecutors()...)
+		}, st.Pool(), gw, append(worker.DefaultExecutors(),
+			worker.NewAgentExecutor(cfg.AgentBaseURL, cfg.ServiceToken,
+				time.Duration(cfg.AgentPollIntervalMS)*time.Millisecond, st.Pool()))...)
 		m.Start(rootCtx)
 		log.Printf("Worker 已启动（并发=%d，类型=%v）", cfg.WorkerConcurrency, m.SupportedTypes())
 	}

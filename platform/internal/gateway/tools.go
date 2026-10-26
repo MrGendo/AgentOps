@@ -218,7 +218,7 @@ func MockHTTPTool() *Tool {
 			Properties: map[string]*Schema{
 				"mode":     {Type: "string", Enum: []string{"success", "error", "timeout", "lost_response"}},
 				"delay_ms": {Type: "integer", Minimum: ptrFloat(0), Maximum: ptrFloat(5000)},
-				"body": {Type: "object", FreeForm: true},
+				"body":     {Type: "object", FreeForm: true},
 			},
 		},
 		Exec: func(ctx context.Context, p Params) (any, error) {
