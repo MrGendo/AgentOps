@@ -1,0 +1,229 @@
+openapi: 3.1.0
+info:
+  title: AgentOps Public API
+  version: 1.0.0
+  description: Go 核心执行平台对外接口（权威契约，双端不得漂移）
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/tasks:
+    post:
+      operationId: createTask
+      summary: 创建任务（幂等）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_type, input]
+              properties:
+                task_type: {type: string, examples: ["ops_diagnosis"]}
+                input: {type: object}
+                params: {type: object, default: {}}
+                allowed_tools: {type: array, items: {type: string}}
+                idempotency_key: {type: string}
+                max_attempts: {type: integer, default: 3}
+                timeout_seconds: {type: integer, default: 600}
+      responses:
+        "201": {description: 已创建, content: {application/json: {schema: {$ref: "#/components/schemas/TaskEnvelope"}}}}
+        "200": {description: 幂等命中已存在任务, content: {application/json: {schema: {$ref: "#/components/schemas/TaskEnvelope"}}}}
+        "409": {description: 同幂等键不同内容, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+    get:
+      operationId: listTasks
+      summary: 任务列表（游标分页+过滤）
+      parameters:
+        - {in: query, name: status, schema: {type: string}}
+        - {in: query, name: task_type, schema: {type: string}}
+        - {in: query, name: created_from, schema: {type: string, format: date-time}}
+        - {in: query, name: created_to, schema: {type: string, format: date-time}}
+        - {in: query, name: limit, schema: {type: integer, default: 20}}
+        - {in: query, name: cursor, schema: {type: string}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/TaskListEnvelope"}}}}
+  /api/v1/tasks/{id}:
+    get:
+      operationId: getTask
+      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/TaskEnvelope"}}}}
+        "404": {description: 不存在, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+  /api/v1/tasks/{id}/cancel:
+    post:
+      operationId: cancelTask
+      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "202": {description: 取消请求已受理}
+        "409": {description: 任务已终态, content: {application/json: {schema: {$ref: "#/components/schemas/ErrorEnvelope"}}}}
+  /api/v1/tasks/{id}/retry:
+    post:
+      operationId: retryTask
+      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "202": {description: 重试已受理，任务回到 PENDING}
+        "409": {description: 非可重试状态}
+  /api/v1/tasks/{id}/events:
+    get:
+      operationId: listTaskEvents
+      parameters:
+        - {in: path, name: id, required: true, schema: {type: string, format: uuid}}
+        - {in: query, name: limit, schema: {type: integer, default: 50}}
+        - {in: query, name: cursor, schema: {type: string}}
+      responses:
+        "200": {description: 按 seq 升序}
+  /api/v1/tasks/{id}/trace:
+    get:
+      operationId: getTaskTrace
+      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: steps+attempts+tool_calls+agent_run 汇聚}
+  /api/v1/tasks/{id}/diagnosis:
+    get:
+      operationId: getDiagnosis
+      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: 诊断报告列表（可能多条，按时间倒序）}
+        "404": {description: 尚无诊断}
+  /api/v1/tools:
+    get:
+      operationId: listTools
+      responses:
+        "200": {description: 工具清单（名称/版本/权限/风险/超时/幂等）}
+  /api/v1/tool-calls:
+    post:
+      operationId: invokeTool
+      summary: 工具网关调用（内部：Python Agent 执行期使用）
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_id, tool_name, params]
+              properties:
+                task_id: {type: string, format: uuid}
+                step_id: {type: string, format: uuid}
+                agent_run_id: {type: string, format: uuid}
+                tool_name: {type: string}
+                params: {type: object}
+                idempotency_key: {type: string}
+      responses:
+        "200": {description: 工具执行结果（含 status: SUCCEEDED/FAILED/TIMEOUT_UNKNOWN/REJECTED）}
+        "403": {description: 任务未授权该工具}
+        "404": {description: 工具未注册}
+  /api/v1/evaluations:
+    get:
+      operationId: listEvaluations
+      responses: {"200": {description: 评测任务列表}}
+    post:
+      operationId: createEvaluation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dataset_id, agent_version]
+              properties:
+                dataset_id: {type: string, format: uuid}
+                agent_version: {type: string}
+                run_config: {type: object}
+      responses:
+        "202": {description: 评测已受理（异步）}
+  /api/v1/evaluations/{id}:
+    get:
+      operationId: getEvaluation
+      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: 进度与分项指标}
+  /api/v1/datasets:
+    get:
+      operationId: listDatasets
+      responses: {"200": {description: 数据集列表}}
+    post:
+      operationId: importDataset
+      summary: 导入 JSONL 数据集
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, cases]
+              properties:
+                name: {type: string}
+                version: {type: integer, default: 1}
+                cases:
+                  type: array
+                  items:
+                    type: object
+                    required: [input_task]
+                    properties:
+                      input_task: {type: object}
+                      expected: {type: object}
+                      allowed_tools: {type: array, items: {type: string}}
+                      run_limits: {type: object}
+                      scoring_rules: {type: object}
+                      tags: {type: array, items: {type: string}}
+                      difficulty: {type: string}
+      responses:
+        "201": {description: 已导入}
+        "409": {description: name+version 已存在}
+  /api/v1/health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: 健康状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [ok, degraded]}
+                  dependencies:
+                    type: object
+                    properties:
+                      postgres: {type: string, enum: [up, down]}
+components:
+  securitySchemes:
+    serviceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+  schemas:
+    Task:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        task_type: {type: string}
+        status: {type: string, enum: [PENDING, RUNNING, CANCEL_REQUESTED, SUCCEEDED, FAILED, CANCELLED]}
+        attempt_count: {type: integer}
+        max_attempts: {type: integer}
+        error_code: {type: [string, "null"]}
+        error_message: {type: [string, "null"]}
+        trace_id: {type: string, format: uuid}
+        created_at: {type: string, format: date-time}
+        started_at: {type: [string, "null"], format: date-time}
+        finished_at: {type: [string, "null"], format: date-time}
+    TaskEnvelope:
+      type: object
+      properties: {data: {$ref: "#/components/schemas/Task"}, meta: {type: object}}
+    TaskListEnvelope:
+      type: object
+      properties:
+        data: {type: array, items: {$ref: "#/components/schemas/Task"}}
+        meta: {type: object, properties: {next_cursor: {type: [string, "null"]}, total: {type: integer}}}
+    Error:
+      type: object
+      required: [code, message, retryable, request_id]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        retryable: {type: boolean}
+        request_id: {type: string}
+        details: {type: object}
+    ErrorEnvelope:
+      type: object
+      properties: {error: {$ref: "#/components/schemas/Error"}}

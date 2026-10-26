@@ -1,0 +1,48 @@
+# AgentOps 本地编排：PG + Go 平台 + Python 智能模块 + 前端控制台
+# 用法：cd deploy && docker compose up -d（首次会构建三个镜像）
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: agentops
+      POSTGRES_PASSWORD: agentops
+      POSTGRES_DB: agentops_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentops -d agentops_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  platform:
+    build: ../platform
+    environment:
+      AGENTOPS_DATABASE_URL: postgres://agentops:agentops@postgres:5432/agentops_dev?sslmode=disable
+      AGENTOPS_PORT: "8080"
+      AGENTOPS_ROLE: all
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agent:
+    build: ../agent
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/internal/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  console:
+    build: ../console
+    ports:
+      - "5173:80"
+    depends_on:
+      - platform
+
+volumes:
+  pgdata:

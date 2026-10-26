@@ -1,0 +1,133 @@
+openapi: 3.1.0
+info:
+  title: AgentOps Internal API (Python)
+  version: 1.0.0
+  description: Python 智能与质量模块内部接口；仅限本机/内网调用，需 X-Service-Token
+servers:
+  - url: http://localhost:8000
+paths:
+  /internal/v1/agent-runs:
+    post:
+      operationId: createAgentRun
+      summary: 发起 Agent 运行（异步）
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_id, goal]
+              properties:
+                task_id: {type: string, format: uuid}
+                trace_id: {type: string, format: uuid}
+                goal: {type: object, description: 任务目标与上下文（Go 下发）}
+                allowed_tools: {type: array, items: {type: string}}
+                run_limits:
+                  type: object
+                  properties:
+                    max_iterations: {type: integer, default: 10}
+                    max_tool_calls: {type: integer, default: 20}
+                    max_plan_steps: {type: integer, default: 8}
+                    max_duration_seconds: {type: integer, default: 300}
+                    model_timeout_seconds: {type: integer, default: 60}
+                model_config: {type: object, description: 模型名与参数，不含密钥}
+      responses:
+        "202":
+          description: 已受理
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: {type: string, format: uuid}
+                      status: {type: string, enum: [PENDING]}
+  /internal/v1/agent-runs/{id}:
+    get:
+      operationId: getAgentRun
+      security: [{serviceToken: []}]
+      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200":
+          description: 运行状态与结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: {type: string, format: uuid}
+                      task_id: {type: string, format: uuid}
+                      status: {type: string, enum: [PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED]}
+                      finish_reason: {type: [string, "null"], description: COMPLETED/MAX_ITERATIONS/MAX_TOOL_CALLS/TIMEOUT/MODEL_ERROR/...}
+                      final_output: {type: [object, "null"], description: 最终输出（摘要级）}
+                      trajectory_digest: {type: [object, "null"], description: 轨迹摘要：迭代数/模型调用数/工具调用数}
+                      token_usage: {type: [object, "null"]}
+                      error: {type: [object, "null"], properties: {code: {type: string}, message: {type: string}}}
+  /internal/v1/evaluations:
+    post:
+      operationId: createEvaluation
+      summary: 执行评测（异步）
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eval_run_id, dataset_id]
+              properties:
+                eval_run_id: {type: string, format: uuid}
+                dataset_id: {type: string, format: uuid}
+                agent_version: {type: string}
+                run_config: {type: object}
+      responses:
+        "202": {description: 已受理}
+  /internal/v1/evaluations/{id}:
+    get:
+      operationId: getEvaluationResult
+      security: [{serviceToken: []}]
+      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      responses:
+        "200": {description: 评测状态与分项指标（口径：per-call / per-task 标明）}
+  /internal/v1/diagnoses:
+    post:
+      operationId: createDiagnosis
+      summary: 分析任务执行轨迹并生成诊断（异步）
+      security: [{serviceToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_id]
+              properties:
+                task_id: {type: string, format: uuid}
+                evidence: {type: object, description: Go 提供的事件/步骤/工具调用/轨迹证据包}
+      responses:
+        "202": {description: 已受理}
+  /internal/v1/health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: 健康状态
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [ok]}
+                  version: {type: string}
+components:
+  securitySchemes:
+    serviceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
