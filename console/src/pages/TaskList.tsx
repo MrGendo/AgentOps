@@ -114,8 +114,25 @@ export default function TaskList() {
         <button className="primary" onClick={() => setDialogOpen(true)}>创建任务</button>
       </div>
 
+      {/* 状态快捷筛选：高频状态一击直达（同一 status 状态，数据驱动） */}
+      <div className="tabs" role="tablist">
+        {[
+          { v: "", label: "全部" },
+          { v: "PENDING", label: "等待" },
+          { v: "RUNNING", label: "执行中" },
+          { v: "SUCCEEDED", label: "成功" },
+          { v: "FAILED", label: "失败" },
+        ].map((t) => (
+          <button key={t.v} role="tab" aria-selected={status === t.v}
+                  className={"tab" + (status === t.v ? " on" : "")}
+                  onClick={() => { setStatus(t.v); resetPage(); }}>
+            {t.label}{t.v === "" && <span className="cnt">{meta.total ?? ""}</span>}
+          </button>
+        ))}
+      </div>
+
       <div className="filters">
-        <label>状态
+        <label>状态（含低频）
           <select value={status} onChange={(e) => { setStatus(e.target.value); resetPage(); }}>
             <option value="">全部</option>
             {["PENDING", "RUNNING", "CANCEL_REQUESTED", "SUCCEEDED", "FAILED", "CANCELLED"].map((s) => (

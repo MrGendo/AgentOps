@@ -93,6 +93,22 @@ export default function Evaluations() {
         <NewRunForm datasets={datasets} onDone={(msg) => { notify(msg); void load(); }} />
       </div>
 
+      {/* 最新运行核心指标（KPI 块，口径见 caliber） */}
+      {compare.length >= 1 && (() => {
+        const latest = [...runs].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+        return (
+          <div className="kpi-grid">
+            {CORE_METRICS.map((m) => (
+              <div className="kpi" key={m.key}>
+                <div className="kpi-value">{metricValue(latest, m.key, m.kind)}</div>
+                <div className="kpi-label">{m.label}</div>
+                <div className="kpi-note">{latest.dataset_name} · {latest.agent_version}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {compare.length >= 2 && (
         <div className="card">
           <h3>版本对比（每版本取最新一次运行）</h3>
