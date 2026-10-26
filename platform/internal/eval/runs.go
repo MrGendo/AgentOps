@@ -303,7 +303,8 @@ func (s *RunService) GetRun(ctx context.Context, id string) (*Run, []map[string]
 		return nil, nil, err
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT c.seq, er.status, er.scores, er.evidence, er.duration_ms, er.error_code
+		SELECT c.seq, er.status, er.scores, er.evidence, er.duration_ms, er.error_code,
+		       er.task_id::text
 		FROM evaluation_results er JOIN evaluation_cases c ON c.id = er.case_id
 		WHERE er.eval_run_id=$1::uuid ORDER BY c.seq`, id)
 	if err != nil {
@@ -317,12 +318,14 @@ func (s *RunService) GetRun(ctx context.Context, id string) (*Run, []map[string]
 		var scores, evidence json.RawMessage
 		var dur *int
 		var ecode *string
-		if err := rows.Scan(&seq, &status, &scores, &evidence, &dur, &ecode); err != nil {
+		var taskID *string
+		if err := rows.Scan(&seq, &status, &scores, &evidence, &dur, &ecode, &taskID); err != nil {
 			return nil, nil, err
 		}
 		results = append(results, map[string]any{
 			"case_seq": seq, "status": status, "scores": scores,
 			"evidence": evidence, "duration_ms": dur, "error_code": ecode,
+			"task_id": taskID,
 		})
 	}
 	return &r, results, rows.Err()
