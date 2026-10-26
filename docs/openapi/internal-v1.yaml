@@ -92,13 +92,31 @@ paths:
     get:
       operationId: getEvaluationResult
       security: [{serviceToken: []}]
-      parameters: [{in: path, name: id, required: true, schema: {type: string, format: uuid}}]
+      parameters: [{in: path, name: id, required: true, schema: {type: string}}]
       responses:
-        "200": {description: 评测状态与分项指标（口径：per-call / per-task 标明）}
+        "200":
+          description: 评测状态与分项指标（每项含 caliber 口径说明）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      eval_run_id: {type: string}
+                      status: {type: string, enum: [PENDING, RUNNING, SUCCEEDED, FAILED]}
+                      metrics:
+                        type: object
+                        description: 分项指标；每项 {value, caliber}，无综合得分
+                      results:
+                        type: array
+                        description: 逐样例结果 {case_seq, case_id, task_id, task_status, status, all_rules_pass, scores, duration_ms, tool_calls, steps, attempt_count, token_usage}
+                      error: {type: [object, "null"]}
   /internal/v1/diagnoses:
     post:
       operationId: createDiagnosis
-      summary: 分析任务执行轨迹并生成诊断（异步）
+      summary: 分析任务执行轨迹并生成诊断（异步契约；规则诊断即时完成）
       security: [{serviceToken: []}]
       requestBody:
         required: true
@@ -109,9 +127,34 @@ paths:
               required: [task_id]
               properties:
                 task_id: {type: string, format: uuid}
-                evidence: {type: object, description: Go 提供的事件/步骤/工具调用/轨迹证据包}
+                evidence:
+                  type: object
+                  description: 证据包 {task, steps, tool_calls, events, agent_runs}
       responses:
         "202": {description: 已受理}
+  /internal/v1/diagnoses/{id}:
+    get:
+      operationId: getDiagnosisResult
+      security: [{serviceToken: []}]
+      parameters: [{in: path, name: id, required: true, schema: {type: string}}]
+      responses:
+        "200":
+          description: 诊断报告
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      fault_code: {type: string, description: §9.2 十类故障码}
+                      confidence: {type: string, enum: [HIGH, MEDIUM, LOW]}
+                      root_cause_hypothesis: {type: string}
+                      evidence: {type: array, description: 引用真实 step/call/event 的 id}
+                      suggestions: {type: array, items: {type: string}}
+                      need_human: {type: boolean}
+                      diagnoser_version: {type: string}
   /internal/v1/health:
     get:
       operationId: health

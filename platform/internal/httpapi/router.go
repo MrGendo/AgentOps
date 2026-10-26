@@ -26,6 +26,7 @@ type Deps struct {
 	Tasks        *task.Store
 	GW           *gateway.Gateway
 	ServiceToken string
+	Eval         *EvalAPI
 }
 
 // New 构建 Gin 引擎并注册对外路由。
@@ -47,6 +48,14 @@ func New(d Deps) *gin.Engine {
 	if d.GW != nil {
 		r.GET("/api/v1/tools", listTools(d.GW))
 		r.POST("/api/v1/tool-calls", serviceToken(d.ServiceToken), invokeTool(d.GW))
+	}
+	if d.Eval != nil {
+		r.POST("/api/v1/datasets", d.Eval.importDataset)
+		r.GET("/api/v1/datasets", d.Eval.listDatasets)
+		r.POST("/api/v1/evaluations", d.Eval.createEvaluation)
+		r.GET("/api/v1/evaluations", d.Eval.listEvaluations)
+		r.GET("/api/v1/evaluations/:id", d.Eval.getEvaluation)
+		r.GET("/api/v1/tasks/:id/diagnosis", d.Eval.getDiagnosis)
 	}
 	return r
 }

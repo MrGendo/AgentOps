@@ -27,7 +27,7 @@
 | 11 | POST /evaluations | 创建评测任务 | 触发 Python 批量评测（异步） |
 | 12 | GET /evaluations/{id} | 评测进度与结果 | 含分项指标 |
 | 13 | GET /datasets | 数据集列表 | |
-| 14 | POST /datasets | 导入 JSONL 数据集 | 补充端点（D-3）；name+version 唯一 |
+| 14 | POST /datasets | 导入数据集 | JSON 体或 JSONL（x-ndjson + ?name=）；name+version 唯一，冲突 409 DATASET_VERSION_EXISTS |
 | 15 | GET /tasks/{id}/diagnosis | 诊断报告 | |
 | 16 | GET /health | 健康检查 | {status, dependencies:{postgres, agent_service}} |
 
@@ -58,6 +58,11 @@
 | TOOL_TIMEOUT_UNKNOWN | 504 | false | 工具超时、结果未知（禁止自动重试） |
 | INTERNAL_ERROR | 500 | false | 兜底 |
 
-## 5. 变更策略
+## 5. 阶段 D 语义补充
+- POST /api/v1/evaluations 立即 202，进度经 GET 轮询；metrics 每项内嵌 caliber 口径说明，无综合得分（§8.3）。
+- GET /api/v1/tasks/{id}/diagnosis：无报告且任务为失败终态时自动触发生成（上限 15s）；成功任务返回空列表。
+- 评测样例任务带幂等键 eval:{run}:{seq}，评测重跑不产生重复任务。
+
+## 6. 变更策略
 - 破坏性变更必须升版本（/api/v2）；同版本内只加字段不删字段。
 - 每次契约变更同步更新两份 yaml + 契约测试样例，随代码同 PR/同提交。

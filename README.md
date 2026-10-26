@@ -81,7 +81,7 @@ make test-py           # Python 测试（当前：健康检查契约）
 make build-console     # 前端类型检查 + 构建
 ```
 
-阶段 C 测试结果：Go 单元 + 集成全绿（含 R1-R10 可靠性场景与双进程 L4 端到端 Agent 任务）；Python 34 测试全绿（模型适配/计划校验/限制全表/网关客户端/异步 API/契约）。`make test-integration` 会自动拉起真实 uvicorn 子进程跑 L4，无需手工准备。测试矩阵见 [docs/testing-strategy.md](docs/testing-strategy.md)。
+阶段 D 测试结果：Go 单元 5 包 + 集成 8 包全绿（含 L4 Agent 端到端与 L5 评测/诊断双进程端到端）；Python 59 测试全绿（规则引擎/指标口径/评测执行器/诊断全表/契约）。`make test-integration` 自动拉起真实 uvicorn 跑 L4/L5，无需手工准备。测试矩阵见 [docs/testing-strategy.md](docs/testing-strategy.md)。
 
 ## Mock 任务与故障注入（阶段 B 已可用）
 
@@ -137,6 +137,31 @@ psql $AGENTOPS_DATABASE_URL -c "SELECT status, finish_reason, tool_call_count, i
 
 真实模型：设 `AGENTOPS_MODEL=openai` + `AGENTOPS_MODEL_API_KEY/BASE_URL`（密钥只从环境变量读取）；未配置时安全回退 Mock。
 
+## 自动评测与失败诊断（阶段 D 已可用）
+
+```bash
+# 双进程启动同上（Go :8080 + Python :8000）
+
+# 导入数据集（JSONL；预置样例在 agent/evaldata/）
+curl -X POST localhost:8080/api/v1/datasets?name=demo-mixed \
+  -H 'Content-Type: application/x-ndjson' --data-binary @agent/evaldata/demo-mixed.jsonl
+
+# 发起批量评测（202 受理，异步执行）
+curl -X POST localhost:8080/api/v1/evaluations -H 'Content-Type: application/json' \
+  -d '{"dataset_id":"<id>","agent_version":"v1"}'
+
+# 查询进度与分项指标（每项含 caliber 口径；无综合得分）
+curl localhost:8080/api/v1/evaluations/<run_id>
+
+# 版本对比：同数据集换 agent_version 再跑一次，列表过滤
+curl 'localhost:8080/api/v1/evaluations?dataset_id=<id>&agent_version=v1'
+
+# 失败任务诊断（无报告自动生成；报告只引用真实事件/步骤/调用）
+curl localhost:8080/api/v1/tasks/<task_id>/diagnosis
+```
+
+指标口径速查：任务成功率/正确率/重试率 per-task；工具调用准确率 per-call（SUCCEEDED 且 ∈allowed）；步骤完成率 per-step。证据不足时诊断明确标 LOW + 人工介入。
+
 ## 常见问题排查
 
 | 现象 | 处理 |
@@ -150,7 +175,7 @@ psql $AGENTOPS_DATABASE_URL -c "SELECT status, finish_reason, tool_call_count, i
 ## 已知限制（阶段 B）
 
 1. 取消请求在步骤/工具调用边界生效：长睡眠类步骤内部不会中断，需等待步骤结束或租约过期后由 reaper 确认 CANCELLED（语义与 §13.6 一致：不撤销已发出的外部副作用）。
-2. 评测/诊断（阶段 D）、控制台页面（阶段 E）尚未实现；Agent 运行态存于 Python 进程内存，Python 重启后 Go 按可重试错误重新下发运行（任务不悬挂）。
+2. 控制台页面（阶段 E）与最终集成验收（阶段 F）尚未实现；Agent/评测运行态存于 Python 进程内存，重启后 Go 按可重试错误重新下发（任务不悬挂，评测可整体重跑且样例任务不重复）。
 2b. 本机若开系统代理（如 Clash），Python 对 Go 的内部调用已强制 `trust_env=False` 直连，不受代理影响。
 3. 无用户认证与 RBAC（需求 §3.1 允许 MVP 阶段从简，接口预留扩展）。
 4. 内部接口仅靠服务令牌 + 网络边界保护，不暴露公网。

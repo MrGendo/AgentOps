@@ -37,7 +37,8 @@ func NewStore(t *testing.T) *store.Store {
 func Truncate(t *testing.T, st *store.Store) {
 	t.Helper()
 	_, err := st.Pool().Exec(context.Background(),
-		`TRUNCATE tasks, task_steps, step_attempts, tool_calls, task_events, agent_runs
+		`TRUNCATE tasks, task_steps, step_attempts, tool_calls, task_events, agent_runs,
+		   evaluation_datasets, evaluation_cases, evaluation_runs, evaluation_results, diagnosis_reports
 		 RESTART IDENTITY CASCADE`)
 	if err != nil {
 		t.Fatalf("清理测试表失败: %v", err)

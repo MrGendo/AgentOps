@@ -16,7 +16,8 @@ def test_expected_paths_present():
     spec = load_spec()
     expected = {"/internal/v1/agent-runs", "/internal/v1/agent-runs/{id}",
                 "/internal/v1/evaluations", "/internal/v1/evaluations/{id}",
-                "/internal/v1/diagnoses", "/internal/v1/health"}
+                "/internal/v1/diagnoses", "/internal/v1/diagnoses/{id}",
+                "/internal/v1/health"}
     assert expected == set(spec["paths"].keys())
 
 

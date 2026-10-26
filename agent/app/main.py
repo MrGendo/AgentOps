@@ -7,8 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.__version__ import __version__
 from app.config import settings
+from app.diagnosis.diagnoser import diagnose as run_diagnosis
+from app.eval.runner import execute_evaluation
+from app.eval.store import eval_store
+
+_diag_store: dict[str, dict] = {}
 from app.gwclient import GatewayClient
 from app.models.openai_compat import build_model
+from app.platform_api import PlatformClient
 from app.runtime.loop import execute_run
 from app.runs import store
 
@@ -79,3 +85,67 @@ async def cancel_agent_run(run_id: str) -> dict:
     """请求取消：在下一轮检查点生效（§6.2 不强行中断已发出的调用）。"""
     ok = store.cancel(run_id)
     return {"data": {"id": run_id, "cancel_requested": ok}}
+
+
+class EvaluationRequest(BaseModel):
+    eval_run_id: str = Field(min_length=1)
+    agent_version: str = "default"
+    run_config: dict | None = None
+    cases: list[dict] = []
+
+
+@app.post("/internal/v1/evaluations", status_code=202, dependencies=[Depends(require_token)])
+async def create_evaluation(req: EvaluationRequest) -> dict:
+    """受理批量评测：逐样例创建真实任务并评分，状态经 GET 轮询。"""
+    state = eval_store.create(req.eval_run_id, req.agent_version, req.run_config, req.cases)
+
+    def _run() -> None:
+        platform = PlatformClient(settings.platform_url,
+                                  timeout=settings.gateway_timeout_seconds)
+        try:
+            execute_evaluation(state, platform)
+        except Exception as e:  # 评测引擎自身异常（非样例失败）
+            state.status = "FAILED"
+            state.error = {"code": "EVALUATION_ERROR", "message": str(e)}
+        finally:
+            platform.close()
+
+    threading.Thread(target=_run, daemon=True,
+                     name=f"eval-{req.eval_run_id[:8]}").start()
+    return {"data": {"id": req.eval_run_id, "status": state.status}}
+
+
+@app.get("/internal/v1/evaluations/{eval_run_id}", dependencies=[Depends(require_token)])
+async def get_evaluation(eval_run_id: str) -> dict:
+    """查询评测进度与分项指标（口径见 metrics.*.caliber）。"""
+    state = eval_store.get(eval_run_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail={
+            "code": "EVALUATION_NOT_FOUND", "message": "评测运行不存在（服务可能已重启）",
+            "retryable": True})
+    return {"data": state.digest()}
+
+
+class DiagnosisRequest(BaseModel):
+    task_id: str
+    evidence: dict
+
+
+@app.post("/internal/v1/diagnoses", status_code=202, dependencies=[Depends(require_token)])
+async def create_diagnosis(req: DiagnosisRequest) -> dict:
+    """受理诊断：纯函数分析证据包，立即完成（保留异步模式以统一契约）。"""
+    report = run_diagnosis(req.evidence)
+    report["task_id"] = req.task_id
+    _diag_store[req.task_id] = report
+    return {"data": {"id": req.task_id, "status": "SUCCEEDED"}}
+
+
+@app.get("/internal/v1/diagnoses/{diag_id}", dependencies=[Depends(require_token)])
+async def get_diagnosis(diag_id: str) -> dict:
+    """取回诊断报告。"""
+    report = _diag_store.get(diag_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail={
+            "code": "DIAGNOSIS_NOT_FOUND", "message": "诊断不存在（服务可能已重启）",
+            "retryable": True})
+    return {"data": report}

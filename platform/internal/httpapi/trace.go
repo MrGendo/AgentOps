@@ -174,7 +174,39 @@ func (a *taskAPI) getTrace(c *gin.Context) {
 	}
 	trows.Close()
 
-	Data(c, http.StatusOK, gin.H{"steps": steps, "tool_calls": toolCalls}, nil)
+	// agent_runs 摘要（Agent 任务评分与诊断的依据；final_output_ref 内联小 JSON）
+	agentRuns := []gin.H{}
+	rrows, rerr := a.pool.Query(ctx, `
+		SELECT id::text, status, COALESCE(finish_reason,''), iteration_count, tool_call_count,
+		       model_call_count, token_usage, final_output_ref, COALESCE(error_code,'')
+		FROM agent_runs WHERE task_id=$1::uuid ORDER BY created_at`, id)
+	if rerr != nil {
+		Fail(c, errInternal, rerr.Error(), nil)
+		return
+	}
+	for rrows.Next() {
+		var rid, status, reason, errCode string
+		var iters, toolN, modelN int
+		var usage json.RawMessage
+		var finalRef *string
+		if err := rrows.Scan(&rid, &status, &reason, &iters, &toolN, &modelN, &usage, &finalRef, &errCode); err != nil {
+			rrows.Close()
+			Fail(c, errInternal, err.Error(), nil)
+			return
+		}
+		var final any
+		if finalRef != nil {
+			_ = json.Unmarshal([]byte(*finalRef), &final)
+		}
+		agentRuns = append(agentRuns, gin.H{
+			"id": rid, "status": status, "finish_reason": reason,
+			"iteration_count": iters, "tool_call_count": toolN, "model_call_count": modelN,
+			"token_usage": usage, "final_output": final, "error_code": errCode,
+		})
+	}
+	rrows.Close()
+
+	Data(c, http.StatusOK, gin.H{"steps": steps, "tool_calls": toolCalls, "agent_runs": agentRuns}, nil)
 }
 
 // taskExists 校验任务存在，否则写 404 并返回 false。

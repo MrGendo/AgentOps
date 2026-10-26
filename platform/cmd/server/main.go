@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/agentops/platform/internal/config"
+	"github.com/agentops/platform/internal/diagnosis"
+	"github.com/agentops/platform/internal/eval"
 	"github.com/agentops/platform/internal/gateway"
 	"github.com/agentops/platform/internal/httpapi"
 	"github.com/agentops/platform/internal/store"
@@ -79,9 +81,20 @@ func run() error {
 		return nil
 	}
 
+	evalStore := eval.NewStore(st.Pool())
 	srv := &http.Server{
-		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.New(httpapi.Deps{DB: st, Pool: st.Pool(), Tasks: task.NewStore(st.Pool()), GW: gw, ServiceToken: cfg.ServiceToken}),
+		Addr: ":" + cfg.Port,
+		Handler: httpapi.New(httpapi.Deps{
+			DB: st, Pool: st.Pool(), Tasks: task.NewStore(st.Pool()), GW: gw,
+			ServiceToken: cfg.ServiceToken,
+			Eval: httpapi.NewEvalAPI(
+				evalStore,
+				eval.NewRunService(st.Pool(), evalStore, cfg.AgentBaseURL, cfg.ServiceToken,
+					time.Duration(cfg.AgentPollIntervalMS)*time.Millisecond),
+				diagnosis.NewService(st.Pool(), cfg.AgentBaseURL, cfg.ServiceToken),
+				st.Pool(),
+			),
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
