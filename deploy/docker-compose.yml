@@ -21,6 +21,7 @@ services:
       AGENTOPS_DATABASE_URL: postgres://agentops:agentops@postgres:5432/agentops_dev?sslmode=disable
       AGENTOPS_PORT: "8080"
       AGENTOPS_ROLE: all
+      AGENTOPS_AGENT_URL: http://agent:8000
     ports:
       - "8080:8080"
     depends_on:
@@ -29,6 +30,9 @@ services:
 
   agent:
     build: ../agent
+    environment:
+      AGENTOPS_PLATFORM_URL: http://platform:8080
+      AGENTOPS_SERVICE_TOKEN: dev-service-token
     ports:
       - "8000:8000"
     healthcheck:

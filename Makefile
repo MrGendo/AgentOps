@@ -1,5 +1,5 @@
 # AgentOps 本地开发命令（README 与本文件保持一致）
-.PHONY: build test migrate-up migrate-down migrate-status test-py build-console compose-up compose-down
+.PHONY: build test migrate-up migrate-down migrate-status test-py build-console compose-up compose-down demo metrics bench test-integration
 
 build:
 	cd platform && go build ./...
@@ -31,3 +31,12 @@ compose-up:
 
 compose-down:
 	cd deploy && docker compose down
+
+demo:
+	bash scripts/demo.sh
+
+metrics:
+	bash scripts/metrics.sh
+
+bench:
+	bash scripts/bench.sh

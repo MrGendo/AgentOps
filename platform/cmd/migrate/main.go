@@ -16,7 +16,10 @@ import (
 
 func main() {
 	dsn := flag.String("dsn", envOr("AGENTOPS_DATABASE_URL", "postgres://localhost:5432/agentops_dev?sslmode=disable"), "数据库连接串")
-	dir := flag.String("dir", "migrations", "迁移目录（相对当前工作目录）")
+	dir := flag.String("dir", os.Getenv("AGENTOPS_MIGRATIONS_DIR"), "迁移目录（默认取 AGENTOPS_MIGRATIONS_DIR，未设时为 ./migrations）")
+	if *dir == "" {
+		*dir = "migrations"
+	}
 	up := flag.Bool("up", false, "升级到最新")
 	down := flag.Int("down", 0, "回滚 N 个迁移")
 	status := flag.Bool("status", false, "查看迁移状态")

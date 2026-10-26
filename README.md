@@ -180,6 +180,23 @@ cd console && npm run dev    # http://localhost:5173（/api 自动代理到 Go�
 
 自动化验证：`cd console && npm test`（11 用例：状态机可见性/格式化/API 层与错误解包）+ `npm run build` + 控制台同源全链路实测（创建 Agent 任务→SUCCEEDED→评测 0.75→诊断 TOOL_ARGUMENT_ERROR，见任务日志）。浏览器级自动化测试未包含（如实声明）。
 
+## 一键演示 / 压测 / 观测 / 故障复现（阶段 F）
+
+```bash
+make demo       # 全链路演示：Agent 任务→评测→诊断→观测基线（自起自清）
+make bench      # 并发压测：bash scripts/bench.sh [任务数] [并发度]
+make metrics    # 观测指标：§14.2 全项（真实库计算）
+bash scripts/security-scan.sh   # 安全扫描（5 项）
+```
+
+### 关键故障复现
+- **Worker 崩溃恢复**：`bash scripts/faults/kill_worker.sh`（server/worker 分离 → kill -9 → 租约过期 → 接管完成）；自动化等价：R2/R3 用例
+- **外部超时结果未知**：`bash scripts/faults/timeout_task.sh`（TIMEOUT_UNKNOWN 留痕、不自动重试）；自动化等价：R7
+- **手动过期租约**：`psql $AGENTOPS_DATABASE_URL -f scripts/faults/expire_lease.sql -v task_id=<id>`
+
+### 最终验收
+见 [docs/final-acceptance-report.md](docs/final-acceptance-report.md)：129 个自动化用例全绿（Go 59 / Python 59 / 前端 11）、compose 全栈容器化链路通过、性能与安全实测数据、已知限制与演进建议。
+
 ## 常见问题排查
 
 | 现象 | 处理 |
