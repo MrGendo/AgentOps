@@ -40,7 +40,7 @@ func NewAgentExecutor(baseURL, token string, poll time.Duration, pool *pgxpool.P
 }
 
 // TaskTypes 声明可执行的任务类型（演示场景 §3.2）。
-func (a *AgentExecutor) TaskTypes() []string { return []string{"agent.ops_diagnosis"} }
+func (a *AgentExecutor) TaskTypes() []string { return []string{"agent.ops_diagnosis", "swe.fix"} }
 
 // agentRunDigest GET 端点返回的运行摘要（与 internal-v1.yaml 对齐）。
 type agentRunDigest struct {

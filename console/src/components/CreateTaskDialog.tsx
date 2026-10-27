@@ -10,6 +10,7 @@ export const TYPE_TEMPLATES: Record<string, { input: string; params: string; too
   "mock.fail": { input: '{"goal":"重试演示"}', params: '{"fail_times":1,"error_class":"TRANSIENT_NETWORK"}', tools: [] },
   "mock.sleep": { input: '{"goal":"超时演示"}', params: '{"seconds":2}', tools: [] },
   "mock.tools": { input: '{"goal":"全链路演示"}', params: "{}", tools: ["calculator", "knowledge_search", "task_status", "mock_http"] },
+  "swe.fix": { input: '{"problem":"修复 clamp 的闭区间边界错误","fixture":"boundary_bug","test_cmd":"python -m pytest -q"}', params: "{}", tools: [] },
   "agent.ops_diagnosis": { input: '{"service":"order-api","描述":"近期响应变慢，请诊断"}', params: "{}", tools: ["knowledge_search", "calculator", "mock_http"] },
 };
 

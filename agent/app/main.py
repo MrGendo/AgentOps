@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.__version__ import __version__
 from app.config import settings
 from app.diagnosis.diagnoser import diagnose as run_diagnosis
+from app.swea.runner import execute_swe_task
 from app.eval.runner import execute_evaluation
 from app.eval.store import eval_store
 
@@ -60,9 +61,26 @@ async def create_agent_run(req: AgentRunRequest) -> dict:
         gw = GatewayClient(settings.platform_url, settings.service_token,
                            timeout=settings.gateway_timeout_seconds)
         try:
-            execute_run(run, build_model(settings), gw)
+            if req.goal.get("task_type") == "swe.fix" or req.goal.get("fixture"):
+                _execute_swe(run, req.goal)
+            else:
+                execute_run(run, build_model(settings), gw)
         finally:
             gw.close()
+
+    def _execute_swe(run, goal: dict) -> None:
+        """SWE 任务：适配器执行并回填运行状态（digest 兼容普通 agent-run）。"""
+        out = execute_swe_task(run.task_id, goal)
+        run.status = out["status"]
+        run.finish_reason = out["finish_reason"]
+        run.final_output = out.get("final_output")
+        u = out.get("token_usage") or {}
+        run.token_usage.prompt_tokens = 0
+        run.token_usage.completion_tokens = 0
+        run.token_usage.total_tokens = int(u.get("model_calls", 0))
+        for ev in out.get("trajectory") or []:
+            run.trajectory.add(ev.get("kind", "note"), ev.get("kind", "note"),
+                               "INFO", {"source": ev.get("source"), **(ev.get("data") or {})})
 
     threading.Thread(target=_run, daemon=True, name=f"agent-run-{run.id[:8]}").start()
     return {"data": {"id": run.id, "status": run.status}}
