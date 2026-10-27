@@ -118,21 +118,24 @@ def _run_real(ws: Path, problem: str, goal: dict, emit) -> dict:
     if settings.api_base:
         model_kwargs["api_base"] = settings.api_base
     model = LitellmModel(model_name=settings.model_name, model_kwargs=model_kwargs)
+    # 上游默认提示词/模板来自 default.yaml 的 agent 节（实测 v2.4.6 装配方式）
+    import yaml as _yaml
+    from minisweagent.config import builtin_config_dir as _cfgdir
+    _agent_cfg = _yaml.safe_load((_cfgdir / "mini_textbased.yaml").read_text())["agent"]
 
+    # 环境注入当前解释器 PATH：Agent 运行 python/pytest 时命中带依赖的 venv
+    import os as _os
+    import sys as _sys
+    _path = _os.pathsep.join([_os.path.dirname(_sys.executable), _os.environ.get("PATH", "")])
     if settings.exec_env == "docker":
         from minisweagent.environments.docker import DockerEnvironment
         env = DockerEnvironment(image=settings.docker_image, cwd="/repo",
-                                env={"HOME": "/root"}, timeout=settings.cmd_timeout)
-        # Docker 环境内执行：工作区以挂载方式交给容器（上游 docker env 支持 volume 挂载约定）
-        env_kw = {}
+                                env={"HOME": "/root", "PATH": "/usr/local/bin:/usr/bin"},
+                                timeout=settings.cmd_timeout)
     else:
-        env = LocalEnvironment(cwd=str(ws), timeout=settings.cmd_timeout)
-        env_kw = {}
+        env = LocalEnvironment(cwd=str(ws), env={"PATH": _path}, timeout=settings.cmd_timeout)
 
-    # 复用上游默认提示词模板（battle-tested），仅注入任务描述
-    # v2.4.6 实测路径：config/default_config.py 的 DEFAULT
-    from minisweagent.config.default_config import DEFAULT as _upstream_default
-    cfg = dict(_upstream_default)
+    cfg = dict(_agent_cfg)
     cfg.update({
         "step_limit": int(goal.get("step_limit", settings.step_limit)),
         "cost_limit": settings.cost_limit,
@@ -141,7 +144,7 @@ def _run_real(ws: Path, problem: str, goal: dict, emit) -> dict:
     emit("agent_start", "adapter", {"model": settings.model_name, "exec_env": settings.exec_env,
                                     "step_limit": cfg["step_limit"]})
     agent = DefaultAgent(model, env, **cfg)
-    out = agent.run(task=problem, **env_kw)
+    out = agent.run(task=problem)
     emit("agent_exit", "upstream", out)
     return {
         "exit_status": out.get("exit_status", ""),

@@ -78,6 +78,7 @@ async def create_agent_run(req: AgentRunRequest) -> dict:
         run.token_usage.prompt_tokens = 0
         run.token_usage.completion_tokens = 0
         run.token_usage.total_tokens = int(u.get("model_calls", 0))
+        run.trajectory.model_calls = int(u.get("model_calls", 0))
         for ev in out.get("trajectory") or []:
             run.trajectory.add(ev.get("kind", "note"), ev.get("kind", "note"),
                                "INFO", {"source": ev.get("source"), **(ev.get("data") or {})})
