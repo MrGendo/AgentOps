@@ -56,6 +56,7 @@ func New(d Deps) *gin.Engine {
 		r.GET("/api/v1/evaluations", d.Eval.listEvaluations)
 		r.GET("/api/v1/evaluations/:id", d.Eval.getEvaluation)
 		r.GET("/api/v1/tasks/:id/diagnosis", d.Eval.getDiagnosis)
+		r.GET("/api/v1/agents", d.Eval.listAgents)
 	}
 	return r
 }

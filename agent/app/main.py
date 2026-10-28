@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.__version__ import __version__
 from app.config import settings
 from app.diagnosis.diagnoser import diagnose as run_diagnosis
-from app.swea.runner import execute_swe_task
+from app.adapters import registry as agent_registry
 from app.eval.runner import execute_evaluation
 from app.eval.store import eval_store
 
@@ -62,15 +62,17 @@ async def create_agent_run(req: AgentRunRequest) -> dict:
                            timeout=settings.gateway_timeout_seconds)
         try:
             if req.goal.get("task_type") == "swe.fix" or req.goal.get("fixture"):
-                _execute_swe(run, req.goal)
+                _execute_swe(run, req.goal)  # 内部经注册表选 Adapter
             else:
                 execute_run(run, build_model(settings), gw)
         finally:
             gw.close()
 
     def _execute_swe(run, goal: dict) -> None:
-        """SWE 任务：适配器执行并回填运行状态（digest 兼容普通 agent-run）。"""
-        out = execute_swe_task(run.task_id, goal)
+        """SWE 任务：按 goal.agent 经注册表选 Adapter 执行（默认 miniswe）。"""
+        adapter = agent_registry.get_adapter(goal.get("agent") or "miniswe") or \
+            agent_registry.get_adapter("miniswe")
+        out = adapter.execute(run.task_id, goal)
         run.status = out["status"]
         run.finish_reason = out["finish_reason"]
         run.final_output = out.get("final_output")
@@ -168,3 +170,10 @@ async def get_diagnosis(diag_id: str) -> dict:
             "code": "DIAGNOSIS_NOT_FOUND", "message": "诊断不存在（服务可能已重启）",
             "retryable": True})
     return {"data": report}
+
+
+@app.get("/internal/v1/agents", dependencies=[Depends(require_token)])
+async def list_agents() -> dict:
+    """注册表视图（可用性/配置态/运行统计严格分离；统计由 Go 注入）。"""
+    from app.adapters.registry import describe
+    return {"data": describe()}

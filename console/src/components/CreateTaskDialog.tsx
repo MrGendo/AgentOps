@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { api, type CreateTaskPayload } from "../api";
+import { api, listAgents, type AgentInfo, type CreateTaskPayload } from "../api";
 import { Icon } from "../icons";
 import type { ToolInfo } from "../types";
 
@@ -27,6 +27,22 @@ export function CreateTaskDialog(props: {
   const [maxAttempts, setMaxAttempts] = useState(3);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [agentId, setAgentId] = useState("miniswe");
+
+  useEffect(() => {
+    void listAgents().then((r) => setAgents(r.data ?? [])).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    // 切到 swe.fix 时注入所选 agent；不可用的引擎不允许选中
+    if (taskType === "swe.fix") {
+      try {
+        const g = JSON.parse(input);
+        g.agent = agentId;
+        setInput(JSON.stringify(g));
+      } catch { /* 模板非法时交由提交校验 */ }
+    }
+  }, [agentId, taskType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickType = (t: string) => {
     setTaskType(t);
@@ -68,6 +84,15 @@ export function CreateTaskDialog(props: {
         <label>任务类型
           <select value={taskType} onChange={(e) => pickType(e.target.value)}>
             {Object.keys(TYPE_TEMPLATES).map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </label>
+        <label>Agent 引擎（swe.fix 生效）
+          <select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+            {agents.map((a) => (
+              <option key={a.agent_id} value={a.agent_id} disabled={!a.available}>
+                {a.display_name}{a.available ? "" : `（不可用：${a.configuration_reason}）`}
+              </option>
+            ))}
           </select>
         </label>
         <label>输入 input（JSON）

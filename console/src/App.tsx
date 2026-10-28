@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import { Layout } from "./components/Layout";
+import Agents from "./pages/Agents";
 import Evaluations from "./pages/Evaluations";
 import Health from "./pages/Health";
 import Overview from "./pages/Overview";
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/tasks/:id" element={<TaskDetail />} />
           <Route path="/evaluations" element={<Evaluations />} />
+          <Route path="/agents" element={<Agents />} />
           <Route path="/health" element={<Health />} />
         </Routes>
       </Layout>

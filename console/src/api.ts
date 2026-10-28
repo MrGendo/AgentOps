@@ -108,3 +108,14 @@ export const api = {
   getEvaluation: (id: string) =>
     request<{ data: import("./types").EvalRunDetail }>(`/api/v1/evaluations/${id}`),
 };
+
+export interface AgentInfo {
+  agent_id: string; display_name: string; adapter_type: string;
+  version: string; description: string; capabilities: string[];
+  available: boolean; configuration_status: string; configuration_reason: string;
+  total_runs: number; success_rate: number | null;
+  last_run_status: string | null; last_used_at: string | null;
+}
+
+export const listAgents = () =>
+  request<{ data: import("./api").AgentInfo[] }>("/api/v1/agents");

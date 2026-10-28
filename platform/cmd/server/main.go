@@ -71,7 +71,7 @@ func run() error {
 			ReaperInterval: time.Duration(cfg.ReaperIntervalMS) * time.Millisecond,
 		}, st.Pool(), gw, append(worker.DefaultExecutors(),
 			worker.NewAgentExecutor(cfg.AgentBaseURL, cfg.ServiceToken,
-				time.Duration(cfg.AgentPollIntervalMS)*time.Millisecond, st.Pool()))...)
+				time.Duration(cfg.AgentPollIntervalMS)*time.Millisecond, st.Pool(), cfg.AgentBaseURL, cfg.ServiceToken))...)
 		m.Start(rootCtx)
 		log.Printf("Worker 已启动（并发=%d，类型=%v）", cfg.WorkerConcurrency, m.SupportedTypes())
 	}
@@ -81,18 +81,18 @@ func run() error {
 		return nil
 	}
 
-	evalStore := eval.NewStore(st.Pool())
+	evalStore := eval.NewStore(st.Pool(), cfg.AgentBaseURL, cfg.ServiceToken)
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: httpapi.New(httpapi.Deps{
-			DB: st, Pool: st.Pool(), Tasks: task.NewStore(st.Pool()), GW: gw,
+			DB: st, Pool: st.Pool(), Tasks: task.NewStore(st.Pool(), cfg.AgentBaseURL, cfg.ServiceToken), GW: gw,
 			ServiceToken: cfg.ServiceToken,
 			Eval: httpapi.NewEvalAPI(
 				evalStore,
 				eval.NewRunService(st.Pool(), evalStore, cfg.AgentBaseURL, cfg.ServiceToken,
 					time.Duration(cfg.AgentPollIntervalMS)*time.Millisecond),
 				diagnosis.NewService(st.Pool(), cfg.AgentBaseURL, cfg.ServiceToken),
-				st.Pool(),
+				st.Pool(), cfg.AgentBaseURL, cfg.ServiceToken,
 			),
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

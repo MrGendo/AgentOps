@@ -8,6 +8,7 @@ const NAV: Array<{ to: string; label: string; icon: IconName; end?: boolean }> =
   { to: "/", label: "总览", icon: "overview", end: true },
   { to: "/tasks", label: "任务", icon: "tasks", end: true },
   { to: "/evaluations", label: "评测与诊断", icon: "chart" },
+  { to: "/agents", label: "Agent 引擎", icon: "pulse" },
   { to: "/health", label: "平台健康", icon: "pulse" },
 ];
 

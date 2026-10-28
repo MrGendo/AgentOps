@@ -88,7 +88,7 @@ func (a *AgentExecutor) Execute(ctx context.Context, h *Handle) error {
 		if err != nil {
 			return nil, err
 		}
-		a.persist(ctx, task.ID, digest)
+		a.persist(ctx, task.ID, digest, agentID(task))
 		switch digest.Status {
 		case "SUCCEEDED":
 			return map[string]any{
@@ -214,7 +214,7 @@ func (a *AgentExecutor) cancelRun(ctx context.Context, runID string) {
 }
 
 // persist 将运行摘要落 agent_runs 表（架构 D-1：Python 不直连库，由 Go 写入）。
-func (a *AgentExecutor) persist(ctx context.Context, taskID string, d *agentRunDigest) {
+func (a *AgentExecutor) persist(ctx context.Context, taskID string, d *agentRunDigest, agentIDv string) {
 	finalOut := string(d.FinalOutput)
 	if finalOut == "" {
 		finalOut = "{}"
@@ -236,7 +236,7 @@ func (a *AgentExecutor) persist(ctx context.Context, taskID string, d *agentRunD
 		  token_usage=EXCLUDED.token_usage, final_output_ref=EXCLUDED.final_output_ref,
 		  error_code=EXCLUDED.error_code, error_message=EXCLUDED.error_message,
 		  finished_at=now()`,
-		d.ID, taskID, a.agentVersion, d.Status, d.FinishReason,
+		d.ID, taskID, agentIDv, d.Status, d.FinishReason,
 		[]byte(orJSON(d.Plan)), d.Trajectory.ModelCalls, d.Trajectory.ToolCalls,
 		d.Trajectory.Iterations, []byte(usage), finalOut, errCode, errMsg)
 }
@@ -265,4 +265,15 @@ func orJSON(b json.RawMessage) string {
 		return "[]"
 	}
 	return string(b)
+}
+
+// agentID 从任务输入取 agent 标识（swe 任务由前端/适配器写入），默认 miniswe。
+func agentID(task TaskSnapshot) string {
+	var g struct {
+		Agent string `json:"agent"`
+	}
+	if json.Unmarshal(task.Input, &g) == nil && g.Agent != "" {
+		return g.Agent
+	}
+	return "miniswe"
 }
