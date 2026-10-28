@@ -119,6 +119,8 @@ class OpenHandsAdapter:
         key = os.getenv("AGENTOPS_SWE_API_KEY", "")
         # 官方 API（v1.49.1 实测）：LLM(model,api_key,base_url)；工具在工作区内执行
         llm = sdk.LLM(model=model, api_key=key, base_url=base or None)
+        import openhands.tools.terminal  # noqa: F401 —— 导入即注册工具到 SDK 注册表
+        import openhands.tools.file_editor  # noqa: F401
         _tools = [sdk.Tool(name="terminal", params={}), sdk.Tool(name="file_editor", params={})]
         agent = sdk.Agent(llm=llm, tools=_tools)
         emit("agent_start", {"model": model, "exec": "local"}, source="openhands")
