@@ -131,7 +131,7 @@ class OpenHandsAdapter:
         _tools = [sdk.Tool(name="terminal", params={}), sdk.Tool(name="file_editor", params={})]
         agent = sdk.Agent(llm=llm, tools=_tools)
         emit("agent_start", {"model": model, "exec": "local"}, source="openhands")
-        conv = sdk.Conversation(agent=agent, workspace=str(ws))
+        conv = sdk.Conversation(agent=agent, workspace=str(ws), delete_on_close=False)
         conv.send_message(goal["problem"])
         conv.run()
         # 事件映射：保留上游原始类型名与摘要，统一进 trajectory
