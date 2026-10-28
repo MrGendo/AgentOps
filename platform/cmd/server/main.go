@@ -80,7 +80,7 @@ func run() error {
 		return nil
 	}
 
-	evalStore := eval.NewStore(st.Pool(), cfg.AgentBaseURL, cfg.ServiceToken)
+	evalStore := eval.NewStore(st.Pool())
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: httpapi.New(httpapi.Deps{
