@@ -119,7 +119,14 @@ class OpenHandsAdapter:
         key = os.getenv("AGENTOPS_SWE_API_KEY", "")
         # 官方 API（v1.49.1 实测）：LLM(model,api_key,base_url)；工具在工作区内执行
         llm = sdk.LLM(model=model, api_key=key, base_url=base or None)
-        import openhands.tools.terminal  # noqa: F401 —— 导入即注册工具到 SDK 注册表
+                # litellm 兼容补丁：部分 provider 的 token wrapper 缺 cache 字段
+        try:
+            from litellm.litellm_core_utils.prompt_templates.common_utils import                 PromptTokensDetailsWrapper as _PTDW
+            if not hasattr(_PTDW, "cache_creation_tokens"):
+                _PTDW.cache_creation_tokens = 0
+        except (ImportError, AttributeError):
+            pass
+        import openhands.tools.terminal  # noqa: F401 —— 导入即注册 —— 导入即注册工具到 SDK 注册表
         import openhands.tools.file_editor  # noqa: F401
         _tools = [sdk.Tool(name="terminal", params={}), sdk.Tool(name="file_editor", params={})]
         agent = sdk.Agent(llm=llm, tools=_tools)
