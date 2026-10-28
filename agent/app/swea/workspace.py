@@ -18,7 +18,8 @@ def prepare_workspace(task_id: str, fixture: str) -> Path:
         raise FileNotFoundError(f"编程任务 fixture 不存在: {fixture}")
     ws = WORKSPACES_ROOT / task_id
     if ws.exists():
-        raise FileExistsError(f"工作区已存在（任务 ID 冲突）: {ws}")
+        # 重试场景：清理旧工作区后重建（同一任务 ID 的重试使用全新基准）
+        shutil.rmtree(ws, ignore_errors=True)
     shutil.copytree(src, ws)
     return ws
 
