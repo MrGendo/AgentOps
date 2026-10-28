@@ -119,7 +119,12 @@ class OpenHandsAdapter:
         key = os.getenv("AGENTOPS_SWE_API_KEY", "")
         # 官方 API（v1.49.1 实测）：LLM(model,api_key,base_url)；工具在工作区内执行
         llm = sdk.LLM(model=model, api_key=key, base_url=base or None)
-        agent = sdk.Agent(llm=llm, tools=[], include_default_tools=["terminal", "file_editor"])
+        from openhands.tools.terminal import TerminalAction, TerminalTool
+        from openhands.tools.terminal.descriptions import UNIX_TOOL_DESCRIPTION
+        from openhands.tools.file_editor import FileEditorTool
+        _t = TerminalTool(description=UNIX_TOOL_DESCRIPTION, action_type=TerminalAction)
+        _f = FileEditorTool(description="View, create, edit, insert or replace file content", action_type=TerminalAction)
+        agent = sdk.Agent(llm=llm, tools=[_t, _f])
         emit("agent_start", {"model": model, "exec": "local"}, source="openhands")
         conv = sdk.Conversation(agent=agent, workspace=str(ws))
         conv.send_message(goal["problem"])
