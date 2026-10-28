@@ -84,7 +84,7 @@ func run() error {
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: httpapi.New(httpapi.Deps{
-			DB: st, Pool: st.Pool(), Tasks: task.NewStore(st.Pool(), cfg.AgentBaseURL, cfg.ServiceToken), GW: gw,
+			DB: st, Pool: st.Pool(), Tasks: task.NewStore(st.Pool()), GW: gw,
 			ServiceToken: cfg.ServiceToken,
 			Eval: httpapi.NewEvalAPI(
 				evalStore,
