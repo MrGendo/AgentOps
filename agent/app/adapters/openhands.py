@@ -12,7 +12,7 @@ from app.swea import acceptance as acc
 from app.swea import workspace as wsmod
 
 AGENT_ID = "openhands"
-_UPSTREAM_VERSION = "sdk@46b1fa5"  # vendor 实测提交（2026-10-28）
+_UPSTREAM_VERSION = "openhands-sdk 1.49.1（vendor 参考 46b1fa5）"
 
 
 class OpenHandsAdapter:
@@ -112,22 +112,25 @@ class OpenHandsAdapter:
         """官方 SDK 真实执行：LLM + Agent(Terminal/FileEditor) + Conversation(本地)。"""
         import os
         sdk = self._sdk()
-        from openhands.tools.file_editor import FileEditorTool
-        from openhands.tools.terminal import TerminalTool
+        # v1.49.1 实测：工具为 Pydantic 规范模型，用 Agent 内置默认工具集注入
 
         model = os.getenv("AGENTOPS_OH_MODEL", os.getenv("AGENTOPS_SWE_MODEL", ""))
         base = os.getenv("AGENTOPS_OH_BASE", os.getenv("AGENTOPS_SWE_API_BASE", ""))
         key = os.getenv("AGENTOPS_SWE_API_KEY", "")
+        # 官方 API（v1.49.1 实测）：LLM(model,api_key,base_url)；工具在工作区内执行
         llm = sdk.LLM(model=model, api_key=key, base_url=base or None)
-        agent = sdk.Agent(llm, tools=[TerminalTool(workdir=str(ws)),
-                                      FileEditorTool(workdir=str(ws))])
+        agent = sdk.Agent(llm=llm, tools=[], include_default_tools=["terminal", "file_editor"])
         emit("agent_start", {"model": model, "exec": "local"}, source="openhands")
-        conv = sdk.Conversation(agent, workspace=str(ws))
-        conv.run(goal["problem"])
+        conv = sdk.Conversation(agent=agent, workspace=str(ws))
+        conv.send_message(goal["problem"])
+        conv.run()
         # 事件映射：保留上游原始类型名与摘要，统一进 trajectory
         n_model = n_tool = 0
         final_text, exit_status = "", ""
-        for ev in getattr(conv, "events", []):
+        _evs = getattr(conv, "events", None)
+        if _evs is None and hasattr(conv, "get_events"):
+            _evs = conv.get_events()
+        for ev in (_evs or []):
             t = type(ev).__name__
             d = {"upstream": t}
             if "Message" in t:
@@ -147,6 +150,7 @@ class OpenHandsAdapter:
                 emit("error", d, source="openhands")
         if not exit_status:
             exit_status = "submitted"
+
         usage = getattr(getattr(conv, "llm", None), "usage", None)
         tokens = {"model_calls": n_model}
         if usage:
