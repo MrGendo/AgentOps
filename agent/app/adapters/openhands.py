@@ -71,6 +71,12 @@ class OpenHandsAdapter:
         except Exception as e:
             return finish("FAILED", "INVALID_INPUT", final_output={"error": str(e)},
                           trajectory=events, token_usage={}, agent_id=AGENT_ID)
+        # SDK 运行中可能管理工作区生命周期——先做快照，执行后恢复
+        import shutil as _sh
+        _snap = ws.parent / f"{ws.name}-snap"
+        if _snap.exists():
+            _sh.rmtree(_snap, ignore_errors=True)
+        _sh.copytree(ws, _snap)
 
         t0 = time.monotonic()
         try:
@@ -86,6 +92,10 @@ class OpenHandsAdapter:
                                         "changed_files": wsmod.changed_files(ws)},
                           trajectory=events, token_usage={}, keep_workspace=True, agent_id=AGENT_ID)
 
+        # SDK 管理工作区生命周期，执行后可能已删除——从快照恢复
+        if not ws.exists() and _snap.exists():
+            _sh.copytree(_snap, ws)
+            emit("note", {"detail": "工作区由快照恢复（SDK 管理了生命周期）"})
         # 独立验收（与 mini-SWE 同一判定器）
         emit("stage", {"stage": "running_acceptance"})
         try:
@@ -97,6 +107,7 @@ class OpenHandsAdapter:
 
         ok = acc_res["passed"]
         wsmod.cleanup_workspace(ws, keep=not ok)
+        _sh.rmtree(_snap, ignore_errors=True)
         return finish("SUCCEEDED" if ok else "FAILED",
                       "ACCEPTANCE_PASSED" if ok else "ACCEPTANCE_FAILED",
                       final_output={"agent_exit_status": out.get("exit_status", ""),
