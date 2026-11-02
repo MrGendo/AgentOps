@@ -143,7 +143,13 @@ class OpenHandsAdapter:
         agent = sdk.Agent(llm=llm, tools=_tools)
         emit("agent_start", {"model": model, "exec": "local"}, source="openhands")
         conv = sdk.Conversation(agent=agent, workspace=str(ws), delete_on_close=False)
-        conv.send_message(goal["problem"])
+        _hint = (
+            "\n\n## 环境提示\n"
+            "- Python 和 pytest 已在当前环境中可用，直接运行 `python -m pytest -q` 即可\n"
+            "- 不要运行 pip install（系统会拒绝），所有依赖已装好\n"
+            "- 用 `cat` 或 `head` 查看文件，用 `python -c` 执行测试片段\n"
+        )
+        conv.send_message(goal["problem"] + _hint)
         conv.run()
         # 事件映射：保留上游原始类型名与摘要，统一进 trajectory
         n_model = n_tool = 0
