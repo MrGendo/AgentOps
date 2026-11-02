@@ -4,9 +4,20 @@
 """
 
 from app.adapters.mini_swe import MiniSweAgentAdapter
-from app.adapters.openhands import OpenHandsAdapter
+from app.adapters.subprocess_agent import SubprocessAgentAdapter
+from pathlib import Path as _Path
 
-_ADAPTERS = {a.agent_id: a for a in [MiniSweAgentAdapter(), OpenHandsAdapter()]}
+_SCRIPTS = _Path(__file__).resolve().parents[2] / "scripts"
+_ADAPTERS = {a.agent_id: a for a in [
+    MiniSweAgentAdapter(),
+    SubprocessAgentAdapter(
+        agent_id="openhands",
+        display_name="OpenHands",
+        description="OpenHands（官方 SDK，子进程隔离模式）",
+        script_path=str(_SCRIPTS / "run_openhands.py"),
+        version="sdk-1.49.1/subprocess",
+    ),
+]}
 
 
 def get_adapter(agent_id: str):
