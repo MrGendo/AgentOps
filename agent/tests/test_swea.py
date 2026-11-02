@@ -25,11 +25,12 @@ def test_workspace_isolation(tmp_path, monkeypatch):
     assert "x=1" not in (w2 / "src/calc.py").read_text()
 
 
-def test_workspace_conflict_rejected(tmp_path, monkeypatch):
+def test_workspace_uuid_unique(tmp_path, monkeypatch):
+    """UUID 后缀保证每次执行独立工作区（重试不冲突）。"""
     monkeypatch.setattr(wsmod, "WORKSPACES_ROOT", tmp_path)
-    wsmod.prepare_workspace("dup", "boundary_bug")
-    with pytest.raises(FileExistsError):
-        wsmod.prepare_workspace("dup", "boundary_bug")
+    w1 = wsmod.prepare_workspace("dup", "boundary_bug")
+    w2 = wsmod.prepare_workspace("dup", "boundary_bug")
+    assert w1 != w2, "UUID 后缀应使两次创建得到不同路径"
 
 
 def test_patch_extraction(tmp_path, monkeypatch):
@@ -65,16 +66,17 @@ def test_real_mode_local_requires_optin(monkeypatch):
 
 
 def test_mock_e2e_fix_passes_acceptance(tmp_path, monkeypatch):
-    """Mock 模式端到端：预置修复被应用 → 独立验收通过 → SUCCEEDED。"""
+    """Mock 模式端到端：四层审计全过 → SUCCEEDED。"""
     monkeypatch.setattr(wsmod, "WORKSPACES_ROOT", tmp_path)
     out = execute_swe_task("e2e-1", {
         "problem": "修边界", "fixture": "boundary_bug",
         "test_cmd": "python -m pytest -q"})
-    assert out["status"] == "SUCCEEDED"
-    assert out["finish_reason"] == "ACCEPTANCE_PASSED"
-    assert out["final_output"]["acceptance"]["passed"] is True
-    assert "src/calc.py" in out["final_output"]["changed_files"]
-    assert any(e["kind"] == "acceptance" for e in out["trajectory"])
+    assert out["status"] == "SUCCEEDED", f"finish={out.get('finish_reason')} levels={out['final_output'].get('audit_levels')}"
+    fo = out["final_output"]
+    assert fo["audit_levels"] and all(l["passed"] for l in fo["audit_levels"]), \
+        f"audit: {[(l['level'], l['passed']) for l in fo.get('audit_levels', [])]}"
+    assert "src/calc.py" in fo["changed_files"]
+    assert "[PASS]" in fo["audit_summary"]
 
 
 def test_mock_no_fix_fails_acceptance(tmp_path, monkeypatch):
