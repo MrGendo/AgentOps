@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 
 from app.swea import acceptance as acc
+from app.audit.multi_level import run_audit
+from app.audit.report import AuditReport
 from app.swea import workspace as wsmod
 from app.swea.config import ConfigError, settings, validate_real_mode
 
@@ -68,15 +70,31 @@ def execute_swe_task(task_id: str, goal: dict, on_event=None) -> dict:
                        trajectory=events, token_usage={},
                        keep_workspace=True)
 
-    # ---- 独立验收（不信 Agent 自述）----
-    emit("stage", "adapter", {"stage": "running_acceptance"})
+    # ---- 多层次验收审计（L1 冒烟/L2 范围/L3 安全/L4 质量）----
+    emit("stage", "adapter", {"stage": "running_audit"})
+    changed = wsmod.changed_files(ws)
     try:
-        acc_res = acc.run_acceptance(ws, test_cmd, timeout=settings.cmd_timeout)
-    except acc.UnsafeTestCommand as e:
-        return _finish("FAILED", "UNSAFE_TEST_CMD", final_output={"error": str(e)},
+        audit_results = run_audit(ws, test_cmd, changed, timeout=settings.cmd_timeout)
+    except Exception as e:
+        return _finish("FAILED", "AUDIT_ERROR", final_output={"error": str(e)},
                        trajectory=events, token_usage=result.get("token_usage", {}))
-    emit("acceptance", "adapter", {"passed": acc_res["passed"],
-                                   "exit_code": acc_res["exit_code"]})
+    for ar in audit_results:
+        emit("audit", "platform", ar.to_dict())
+    acc_res = {"passed": all(a.passed for a in audit_results),
+               "exit_code": 0 if audit_results[0].passed else 1,
+               "output_tail": audit_results[0].detail,
+               "command": test_cmd}
+    # 构建结构化审计报告
+    audit_report = AuditReport(
+        task_id=task_id, agent_id="miniswe",
+        model="mock" if settings.mode == "mock" else settings.model_name,
+        started_at=t0, finished_at=time.time(),
+        audit_levels=[a.to_dict() for a in audit_results],
+        changed_files=[f for f in changed if not f.endswith(".pyc")],
+        model_calls=result.get("token_usage", {}).get("model_calls", 0),
+        token_usage=result.get("token_usage", {}),
+        agent_submission=result.get("submission", ""),
+    )
 
     patch = wsmod.extract_patch(ws)
     changed = wsmod.changed_files(ws)
@@ -85,7 +103,9 @@ def execute_swe_task(task_id: str, goal: dict, on_event=None) -> dict:
         "agent_exit_status": result.get("exit_status", ""),
         "agent_submission": result.get("submission", ""),
         "acceptance": acc_res,
-        "changed_files": changed,
+        "audit_levels": audit_report.audit_levels,
+        "audit_summary": audit_report.summary_line(),
+        "changed_files": [f for f in changed if not f.endswith(".pyc")],
         "patch": patch[:20000],
         "model": settings.model_name if settings.mode == "real" else "mock",
         "mode": settings.mode,

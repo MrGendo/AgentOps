@@ -202,6 +202,32 @@ export default function TaskDetail() {
         )}
       </div>
 
+      {(() => {
+        const fo = (trace?.agent_runs ?? []).slice(-1)[0]?.final_output as
+          { audit_levels?: Array<{level:string;name:string;passed:boolean;detail:string}>; audit_summary?: string } | undefined;
+        const levels = fo?.audit_levels;
+        if (!levels || levels.length === 0) return null;
+        return (
+          <div className="card">
+            <h3>验收审计（四层）</h3>
+            <p className="muted small-text">{fo?.audit_summary}</p>
+            <table className="table">
+              <thead><tr><th>层级</th><th>名称</th><th>结果</th><th>详情</th></tr></thead>
+              <tbody>
+                {levels.map((l, i) => (
+                  <tr key={i}>
+                    <td><b>{l.level}</b></td>
+                    <td>{l.name}</td>
+                    <td><span className={"badge " + (l.passed ? "green" : "red")}>{l.passed ? "通过" : "未过"}</span></td>
+                    <td className="muted small-text" style={{maxWidth:300, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{l.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
       <div className="card">
         <h3>失败诊断</h3>
         {reports === null && <span className="muted">—</span>}
