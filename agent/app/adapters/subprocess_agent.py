@@ -72,15 +72,15 @@ class SubprocessAgentAdapter:
         emit("agent_start", {"exec": "subprocess"}, source=self.agent_id)
 
         # 子进程运行 Agent（完全隔离，我们不管内部）
-        cmd = [
-            sys.executable, self.script_path,
-            "--workspace", str(ws),
-            "--problem", goal["problem"],
-            "--model", os.getenv("AGENTOPS_SWE_MODEL", ""),
-            "--api-key", os.getenv("AGENTOPS_SWE_API_KEY", ""),
-            "--base-url", os.getenv("AGENTOPS_SWE_API_BASE", ""),
-            "--timeout", str(goal.get("time_limit_s", 600)),
-        ]
+        args = [str(ws), goal["problem"],
+                os.getenv("AGENTOPS_SWE_MODEL", ""),
+                os.getenv("AGENTOPS_SWE_API_KEY", ""),
+                os.getenv("AGENTOPS_SWE_API_BASE", ""),
+                str(goal.get("time_limit_s", 600))]
+        if self.script_path.endswith(".py"):
+            cmd = [sys.executable, self.script_path] + args
+        else:
+            cmd = ["bash", self.script_path] + args
         try:
             proc = subprocess.run(
                 cmd, capture_output=True, text=True,

@@ -8,14 +8,33 @@ from app.adapters.subprocess_agent import SubprocessAgentAdapter
 from pathlib import Path as _Path
 
 _SCRIPTS = _Path(__file__).resolve().parents[2] / "scripts"
+
+def _check_cmd(cmd: str) -> bool:
+    import shutil as _sh
+    return _sh.which(cmd) is not None
+
 _ADAPTERS = {a.agent_id: a for a in [
     MiniSweAgentAdapter(),
     SubprocessAgentAdapter(
         agent_id="openhands",
         display_name="OpenHands",
-        description="OpenHands（官方 SDK，子进程隔离模式）",
+        description="OpenHands（官方 SDK，子进程隔离）",
         script_path=str(_SCRIPTS / "run_openhands.py"),
         version="sdk-1.49.1/subprocess",
+    ),
+    SubprocessAgentAdapter(
+        agent_id="cline",
+        display_name="Cline",
+        description="Cline CLI（自主编码 Agent，npm 包）",
+        script_path=str(_SCRIPTS / "run_cline.sh"),
+        version="3.0.74/cli",
+    ),
+    SubprocessAgentAdapter(
+        agent_id="aider",
+        display_name="Aider",
+        description="Aider CLI（AI 结对编程，pip 包）",
+        script_path=str(_SCRIPTS / "run_aider.sh"),
+        version="chat/latest-cli",
     ),
 ]}
 
