@@ -149,6 +149,12 @@ class OpenHandsAdapter:
             "- 不要运行 pip install（系统会拒绝），所有依赖已装好\n"
             "- 用 `cat` 或 `head` 查看文件，用 `python -c` 执行测试片段\n"
         )
+        # SDK setup 可能清空了工作区——从 fixture 重新填充
+        import shutil as _sh2
+        from app.swea.workspace import FIXTURES_DIR as _FD
+        if not (ws / "src").is_dir():
+            _sh2.copytree(_FD / goal["fixture"] / "repo", ws, dirs_exist_ok=True)
+            emit("note", {"detail": "工作区在 SDK setup 后重新填充"})
         conv.send_message(goal["problem"] + _hint)
         conv.run()
         # 事件映射：保留上游原始类型名与摘要，统一进 trajectory
