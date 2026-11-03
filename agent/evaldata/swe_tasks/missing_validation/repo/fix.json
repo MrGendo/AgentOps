@@ -1,0 +1,1 @@
+{"files": {"src/div.py": "def safe_div(a,b):\n    if b==0: raise ValueError('denominator is zero')\n    return a/b\n"}}

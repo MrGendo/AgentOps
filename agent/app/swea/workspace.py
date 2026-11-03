@@ -20,7 +20,21 @@ def prepare_workspace(task_id: str, fixture: str) -> Path:
     import uuid
     ws = WORKSPACES_ROOT / f"{task_id[:8]}-{uuid.uuid4().hex[:6]}"
     shutil.copytree(src, ws)
+    # fixture 以普通文件入库（嵌套 git 仓库在克隆后是空目录），
+    # 克隆环境无 .git 可复制 → 此处自动建基线提交，保证 diff/审计可用
+    if not (ws / ".git").exists():
+        _init_baseline(ws)
     return ws
+
+
+def _init_baseline(ws: Path) -> None:
+    """为无 git 历史的工作区建立基准提交（changed_files/extract_patch 依赖它）。"""
+    # 显式指定提交者，避免裸环境缺全局 git config 时 commit 失败
+    base = ["git", "-c", "user.name=agentops", "-c", "user.email=agentops@local"]
+    for args in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "fixture baseline"]):
+        proc = subprocess.run(base + args, cwd=ws, capture_output=True, text=True, timeout=30)
+        if proc.returncode != 0:
+            raise RuntimeError(f"工作区基线初始化失败: {proc.stderr.strip()}")
 
 
 def changed_files(ws: Path) -> list[str]:

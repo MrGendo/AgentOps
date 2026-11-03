@@ -42,6 +42,20 @@ def test_patch_extraction(tmp_path, monkeypatch):
     assert wsmod.changed_files(w) == ["src/calc.py"]
 
 
+def test_workspace_auto_init_baseline(tmp_path, monkeypatch):
+    """fixture 平铺入库（无 .git，等价于 GitHub 克隆产物）时自动建基线，diff/审计照常可用。"""
+    fx = tmp_path / "fixtures" / "flat_fixture" / "repo"
+    (fx / "src").mkdir(parents=True)
+    (fx / "src" / "calc.py").write_text("def clamp(v, lo, hi):\n    return v\n")
+    monkeypatch.setattr(wsmod, "FIXTURES_DIR", tmp_path / "fixtures")
+    monkeypatch.setattr(wsmod, "WORKSPACES_ROOT", tmp_path / "ws")
+    w = wsmod.prepare_workspace("flat1", "flat_fixture")
+    assert (w / ".git").is_dir(), "无 .git 的 fixture 应自动初始化基线仓库"
+    (w / "src" / "calc.py").write_text("def clamp(v, lo, hi):\n    return hi\n")
+    assert wsmod.changed_files(w) == ["src/calc.py"]
+    assert "diff --git" in wsmod.extract_patch(w)
+
+
 def test_real_mode_requires_key(monkeypatch):
     """真实模式缺密钥必须明确报错，绝不静默降级 Mock。"""
     monkeypatch.setenv("AGENTOPS_SWE_MODE", "real")

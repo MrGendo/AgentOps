@@ -1,0 +1,1 @@
+{"files": {"src/stats.py": "def mean(xs):\n    return sum(xs)/len(xs)\n"}}

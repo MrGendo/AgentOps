@@ -1,0 +1,1 @@
+{"files": {"src/calc.py": "def clamp(v, lo, hi):\n    return lo if v < lo else hi if v > hi else v\n"}}
