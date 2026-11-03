@@ -13,5 +13,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.27", "pyyaml>=6"]
 
+[tool.setuptools.packages.find]
+# 显式只收 app 包：evaldata 是数据目录不是包，flat-layout 自动发现会因
+# "Multiple top-level packages" 拒绝安装（新鲜克隆必现）
+include = ["app*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
