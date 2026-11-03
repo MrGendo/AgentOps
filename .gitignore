@@ -10,3 +10,4 @@ platform/bin/
 memory/
 *.egg-info/
 *.tsbuildinfo
+vendor/
